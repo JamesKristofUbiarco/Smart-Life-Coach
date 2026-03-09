@@ -4,3 +4,6 @@
 [submodule "backend"]
 	path = backend
 	url = git@github.com:Yunojo/-Smart-Life-Coach-backend.git
+[submodule "AI-component"]
+	path = AI-component
+	url = git@github.com:Hugolopez5134/Smart-Life-Coach-AI.git
