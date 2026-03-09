@@ -7,3 +7,6 @@
 [submodule "AI-component"]
 	path = AI-component
 	url = git@github.com:Hugolopez5134/Smart-Life-Coach-AI.git
+[submodule "db"]
+	path = db
+	url = git@github.com:Chrismx079/Smart-Life-Coach-DB.git
