@@ -1,16 +1,16 @@
 [submodule "frontend"]
 	path = frontend
-	url = https://github.com/JamesKristofUbiarco/Smart-Life-Coach-Frontend.git
+	url = git@github.com:JamesKristofUbiarco/Smart-Life-Coach-Frontend.git
 	branch = main
 [submodule "backend"]
 	path = backend
-	url = https://github.com/Yunojo/-Smart-Life-Coach-backend.git
+	url = git@github.com:Yunojo/-Smart-Life-Coach-backend.git
 	branch = main
 [submodule "AI-component"]
 	path = AI-component
-	url = https://github.com/Hugolopez5134/Smart-Life-Coach-AI.git
+	url = git@github.com:Hugolopez5134/Smart-Life-Coach-AI.git
 	branch = main
 [submodule "db"]
 	path = db
-	url = https://github.com/Chrismx079/Smart-Life-Coach-DB.git
+	url = git@github.com:Chrismx079/Smart-Life-Coach-DB.git
 	branch = main
