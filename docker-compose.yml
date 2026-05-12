@@ -1,0 +1,143 @@
+# =============================================================
+#  docker-compose.yml — Smart-Life-Coach (raíz del monorepo)
+#
+#  Orquesta los 4 componentes principales del proyecto:
+#    - frontend       (Next.js,  puerto 3000)
+#    - backend        (FastAPI,  puerto 8000)
+#    - ai-component   (FastAPI + LangGraph + Gemini, puerto 8001)
+#    - redis          (cache para IA, puerto 6379)
+#
+#  NOTA sobre Supabase:
+#    Supabase NO se levanta aquí — se gestiona por separado con su
+#    propia CLI desde la carpeta db/:
+#        cd db && npx supabase start
+#    Los contenedores definidos abajo alcanzan a Supabase en el host
+#    a través de "host.docker.internal:54321" (ver extra_hosts).
+#
+#  Uso típico:
+#    1) Levantar Supabase y aplicar migraciones:
+#         cd db && npx supabase start
+#    2) Copiar las llaves a un .env raíz (ver .env.example)
+#    3) Levantar el resto:
+#         docker compose up -d --build
+#    4) Detener todo:
+#         docker compose down
+# =============================================================
+
+services:
+
+  # -----------------------------------------------------------
+  #  REDIS — Caché para contexto de la IA
+  # -----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: slc-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - slc-net
+
+  # -----------------------------------------------------------
+  #  AI-COMPONENT — LangGraph + Gemini (FastAPI :8001)
+  # -----------------------------------------------------------
+  ai-component:
+    build:
+      context: ./AI-component
+      dockerfile: Dockerfile
+    container_name: slc-ai-component
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      # API key de Gemini (obligatoria)
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # El AI-component llama de vuelta al backend para usar herramientas (crear planes, etc.)
+      FASTAPI_URL: http://backend:8000
+    extra_hosts:
+      # Para alcanzar Supabase corriendo en el host (npx supabase start)
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - slc-net
+
+  # -----------------------------------------------------------
+  #  BACKEND — FastAPI principal (:8000)
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: slc-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Supabase corre en el host (npx supabase start)
+      SUPABASE_URL: ${SUPABASE_URL:-http://host.docker.internal:54321}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      # El backend habla con el AI-component vía nombre de servicio
+      AI_COMPONENT_URL: http://ai-component:8001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - ai-component
+    networks:
+      - slc-net
+
+  # -----------------------------------------------------------
+  #  FRONTEND — Next.js (:3000)
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Las NEXT_PUBLIC_* se inlinan en el bundle del cliente en build-time
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    container_name: slc-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Para el código que se ejecuta en el SERVIDOR (SSR / route handlers),
+      # Supabase y el backend se alcanzan dentro de la red docker.
+      SUPABASE_SERVER_URL: ${SUPABASE_SERVER_URL:-http://host.docker.internal:54321}
+      FASTAPI_BASE_URL: ${FASTAPI_BASE_URL:-http://backend:8000}
+
+      # Para el código que se ejecuta en el NAVEGADOR (las variables NEXT_PUBLIC_*),
+      # las URLs deben ser alcanzables desde la PC del usuario (localhost del host).
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+
+      # API Keys
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+    networks:
+      - slc-net
+
+# -------------------------------------------------------------
+#  REDES Y VOLÚMENES
+# -------------------------------------------------------------
+networks:
+  slc-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
